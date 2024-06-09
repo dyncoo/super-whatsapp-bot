@@ -21,13 +21,11 @@ const openai = require('./modules/openai')
 const crypto = require('./modules/crypto')
 const urban = require('./modules/urban')
 
-
 const config_data = require('./config.js');
 
 var networkInterfaces = os.networkInterfaces();
 const host_ip = networkInterfaces['eth0'][0]['address']
 host_address = `http://${host_ip}:3000`
-
 
 
 console.log(`************************`)
@@ -45,9 +43,6 @@ const user_dl_limit = 42
 var quiz_active = false
 var quiz_solution = ''
 var quiz_answers = []
-
-
-console.log(`trying to connect to mongodb with mongoose and init client...`)
 
 // Load the session data
 mongoose.connect(config_data.mongodb).then(() => {
@@ -68,8 +63,7 @@ mongoose.connect(config_data.mongodb).then(() => {
       }
   });
 
-  client.initialize();
-  
+  client.initialize();  
 
   client.on('qr', (qr) => {
     console.log('QR RECEIVED', qr);
@@ -134,7 +128,6 @@ mongoose.connect(config_data.mongodb).then(() => {
     console.log(`hasQuotedMsg: ${hasQuotedMsg}`)
     console.log(`*************************`)
 
-
     if (message.body === 'Hi') {
         try {
             client.sendMessage(message.from, 'Hello! Bot online :)');
@@ -160,7 +153,6 @@ mongoose.connect(config_data.mongodb).then(() => {
       + `\n@ytmp4`)
     }
 
-
     //chatgpt
     if (command.startsWith('openai') || command.startsWith('oai') || command.startsWith('ai') || command.startsWith('gpt') || command.startsWith('cgpt') || command.startsWith('chatgpt')) {
 
@@ -183,7 +175,6 @@ mongoose.connect(config_data.mongodb).then(() => {
         return client.sendMessage(message.from, `Error getting ChatGPT for '${arg}'`)
       }
     }
-
 
     //dall-e
     if (command.startsWith('dalle') || command.startsWith('aipicture') || command.startsWith('gptpicture')) {
