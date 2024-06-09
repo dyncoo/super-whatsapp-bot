@@ -47,7 +47,51 @@ async function openai(question) {
     } 
 }
 
+async function openai_image(question) {
+    res_obj = {}
+
+    try {        
+        const client = axios.create({
+            headers: {
+            'Authorization': 'Bearer ' + API_KEY
+            }
+        });
+
+        let params = {
+            model: "dall-e-2",
+            prompt: question,
+            n: 1,
+            size: "1024x1024"
+        }
+
+        await client.post('https://api.openai.com/v1/images/generations',params)
+            .then(result => {
+                console.log("result.data")
+                console.log(result.data)
+                res_obj['status'] = 200
+                res_obj['question'] = question
+                res_obj['answer'] = result.data.data[0].url                
+            })
+            .catch(err => {
+                console.log("err")
+                console.log(err)
+                res_obj['status'] = 500
+                res_obj['question'] = question
+                res_obj['answer'] = ''
+            })
+        return res_obj
+
+    } catch (err) {
+        console.error(err);
+        res_obj['status'] = 500
+        res_obj['question'] = question
+        res_obj['answer'] = ''
+        return res_obj
+    } 
+}
+
 
 module.exports = {
-    openai
+    openai,
+    openai_image
 }
