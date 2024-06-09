@@ -1,12 +1,16 @@
-const qrcode = require('qrcode-terminal')
-const { Client, LegacySessionAuth, Location, List, Buttons, LocalAuth } = require('whatsapp-web.js')
+const qrcode = require('qrcode-terminal');
+
+const { Client, LegacySessionAuth, Location, List, Buttons, LocalAuth, RemoteAuth } = require('whatsapp-web.js')
 const { MessageMedia } = require('whatsapp-web.js')
+const { MongoStore } = require('wwebjs-mongo');
+const mongoose = require('mongoose');
 
 const fs = require('fs')
 const os = require('os')
 const axios = require('axios')
 const translate = require('@vitalets/google-translate-api')
 
+const dbn = require('./modules/dbn')
 const wetter = require('./modules/wetter')
 const mgdb_m = require('./modules/mgdb')
 const wiki = require('./modules/wiki')
@@ -18,9 +22,9 @@ const crypto = require('./modules/crypto')
 const urban = require('./modules/urban')
 
 
-const config_data = require('./config.js')
+const config_data = require('./config.js');
 
-var networkInterfaces = os.networkInterfaces()
+var networkInterfaces = os.networkInterfaces();
 const host_ip = networkInterfaces['eth0'][0]['address']
 host_address = `http://${host_ip}:3000`
 
@@ -43,49 +47,60 @@ var quiz_solution = ''
 var quiz_answers = []
 
 
-const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: {
-        executablePath: '/usr/bin/google-chrome-stable',
-        headless: true,
-        args: ['--no-sandbox','--disable-setuid-sandbox']
-    }
-});
+console.log(`trying to connect to mongodb with mongoose and init client...`)
 
-console.log(`Please wait 1 min. Bot is connecting...`)
-client.initialize();
+// Load the session data
+mongoose.connect(config_data.mongodb).then(() => {
+  const store = new MongoStore({ mongoose: mongoose });
+  const client = new Client({
+      webVersionCache: {
+        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2411.2.html', //change to your whatsapp version
+        type: 'remote' 
+      },
+      authStrategy: new RemoteAuth({
+          store: store,
+          backupSyncIntervalMs: 300000
+      }),
+      puppeteer: {
+          executablePath: '/usr/bin/google-chrome-stable',
+          headless: true,
+          args: ['--no-sandbox','--disable-setuid-sandbox']
+      }
+  });
 
+  client.initialize();
+  
 
-client.on('qr', (qr) => {
+  client.on('qr', (qr) => {
     console.log('QR RECEIVED', qr);
     qrcode.generate(qr, {small: true});
-});
+  });
 
-client.on('authenticated', () => {
+  client.on('authenticated', () => {
     console.log('AUTHENTICATED');
-});
+  });
 
-client.on('auth_failure', message => {
+  client.on('auth_failure', message => {
     console.error('AUTHENTICATION FAILURE', message);
-});
+  });
 
-client.on('ready', () => {
+  client.on('ready', () => {
     console.log('Super Whatsapp-Bot online!');
-});
+  });
 
 
-client.on('message', async message => {
+  client.on('message', async message => {
 
     console.log('MESSAGE RECEIVED', message);
-  
+
     let { t, notifyName, ack, isNewMsg } = message['_data']
-  
+
     let { body, hasMedia, type, timestamp, from, to, author, deviceType, isForwarded, fromMe, hasQuotedMsg } = message
-  
+
     if(!isNewMsg) {
       return;
     }
-     
+    
     var command = ''
     if(body.startsWith('@')) {
       command = body.trim().replace('@', '').split(/\s/).shift().toLowerCase()
@@ -96,7 +111,7 @@ client.on('message', async message => {
     } else {
       arg = body.split(' ').length > 1 ? body.trim().substring(body.indexOf(' ') + 1) : ''
     }
-  
+
     console.log(`*************************`)
     console.log(`body: ${body}`)
     console.log(`command: ${command}`)
@@ -118,8 +133,8 @@ client.on('message', async message => {
     console.log(`fromMe: ${fromMe}`)
     console.log(`hasQuotedMsg: ${hasQuotedMsg}`)
     console.log(`*************************`)
-  
-  
+
+
     if (message.body === 'Hi') {
         try {
             client.sendMessage(message.from, 'Hello! Bot online :)');
@@ -127,7 +142,7 @@ client.on('message', async message => {
             console.error(err)
         }
     }  
-  
+
     if (command.startsWith('cmd') || command.startsWith('info') || command.startsWith('?')) {
       client.sendMessage(message.from, `Commands` 
       + `\n@translate`
@@ -137,6 +152,7 @@ client.on('message', async message => {
       + `\n@ebay`
       + `\n@crypto`
       + `\n@chatgpt`
+      + `\n@dalle`
       + `\n@wetter`
       + `\n@quiz`
       + `\n@casino`
@@ -147,7 +163,7 @@ client.on('message', async message => {
 
     //chatgpt
     if (command.startsWith('openai') || command.startsWith('oai') || command.startsWith('ai') || command.startsWith('gpt') || command.startsWith('cgpt') || command.startsWith('chatgpt')) {
-  
+
       if(arg <= 1) {
         return client.sendMessage(message.from, "Use chatgpt like this -> @gpt <question>")        
       }
@@ -167,7 +183,30 @@ client.on('message', async message => {
         return client.sendMessage(message.from, `Error getting ChatGPT for '${arg}'`)
       }
     }
-  
+
+
+    //dall-e
+    if (command.startsWith('dalle') || command.startsWith('aipicture') || command.startsWith('gptpicture')) {
+
+      if(arg <= 1) {
+        return client.sendMessage(message.from, "Use chatgpt like this -> @gpt <question>")        
+      }
+
+      try {
+        let res_openai_data = await openai.openai_image(arg)
+        if(res_openai_data.status !== 200) {
+          if (res_openai_data.status == 500) {
+            return client.sendMessage(message.from, `Could not get response for OpenAI ChatGPT question '${arg}' (500)`) 
+          }
+          return client.sendMessage(message.from, "Error getting an OpenAI ChatGPT response") 
+        }
+        let media = await MessageMedia.fromUrl(res_openai_data.answer);
+        client.sendMessage(message.from, media);
+      } catch(err){
+        return client.sendMessage(message.from, `Error getting ChatGPT for '${arg}'`)
+      }
+    }
+
     //imdb
     if (command.startsWith('imdb') || command.startsWith('i') || command.startsWith('movie')) {
 
@@ -192,7 +231,7 @@ client.on('message', async message => {
         return client.sendMessage(message.from, `Error getting IMDb for '${arg}'`)
       }
     }
-  
+
     //ebay
     if (command.startsWith('ebay') || command.startsWith('e') || command.startsWith('price')) {
 
@@ -244,10 +283,10 @@ client.on('message', async message => {
         return client.sendMessage(message.from, `Error connecting to Urban Dictionary for '${arg}'`)
       }
     }
-  
+
     //crypto
     if (command.startsWith('crypto') || command.match('cc')) {
-  
+
       try {  
         let res_crypto_data = await crypto.getAllCrypto(arg)
         res_str = ''
@@ -292,7 +331,7 @@ client.on('message', async message => {
                                       + "\n*Windstärke:* " + data.current_wind);
       }
     }
-  
+
     //translate
     if (command.startsWith('t')) {
         if(hasQuotedMsg) {
@@ -424,10 +463,10 @@ client.on('message', async message => {
         console.log(err)
       }
     }
-  
+
     //quiz
     if (command.startsWith('quiz') || command.startsWith('q')) {
-  
+
       var data = await quiz.quiz()
       quiz_solution = data.antwort
       quiz_solution_arr = data.antwort.toLowerCase().split(" ")
@@ -435,7 +474,7 @@ client.on('message', async message => {
       quiz_active = true
       await new Promise(resolve => setTimeout(resolve, 30000))
       client.sendMessage(message.from, `*Quiz solution*\n${data.antwort}`)
-  
+
       for(let qi = 0;qi < quiz_answers.length;qi++) {
         if(quiz_answers[qi]['correct']) {
           liegestuetzen = 20
@@ -463,7 +502,7 @@ client.on('message', async message => {
       quiz_active = false 
       quiz_answers = []
     }
-  
+
     //casino
     if (command.startsWith('casino') || command.startsWith('gamble') ) {    
       var fruitArr = ['🍉','🍇','🍒','🍊','🍋','🥥','🌶']
@@ -511,7 +550,7 @@ client.on('message', async message => {
             })  
       }
     }
-  
+
     if (command.startsWith('reset ls')) {
         if (hasQuotedMsg) {
           user_to_reset = message.to
@@ -537,7 +576,7 @@ client.on('message', async message => {
           console.log("[@set ls] err:" + err)
         })
     }
-  
+
     //wiki
     if (command.startsWith('wiki')) {
       let wiki_result = await wiki.wiki(arg)
@@ -554,7 +593,7 @@ client.on('message', async message => {
                                       + '\n' + wiki_result + '...'
                                       + `\nhttps://${config_data.lang}.wikipedia.org/wiki/${linkarg}`)
     }
-  
+
     //ytmp3
     if(command.startsWith('ytmp3') || command.startsWith('mp3') ) {
       try {
@@ -579,7 +618,7 @@ client.on('message', async message => {
 
         var username_number = message.from.split('-')[0].toString()
         var yt_anz
-  
+
         await mgdb_m.ytdb(username)
         .then(id_obj => {
           yt_anz = id_obj.yt
@@ -588,16 +627,16 @@ client.on('message', async message => {
           console.log("[@ytmp3] err(1):" + err)
           return client.sendMessage(message.from, `DB connection error`) 
         })
-  
+
         if(yt_anz >= user_dl_limit) {
             return client.sendMessage(message.from, `Max 3 vids/hour`) 
         }
-  
+
         var yt_status
         var yt_secs
         var yt_title
         var yt_viewCount
-  
+
         var getWait = {
             method: 'get',
             url: `${host_address}/yt3/${ytid}`
@@ -618,7 +657,7 @@ client.on('message', async message => {
           return client.sendMessage(message.from, `*YTMP3 error: couldn't get video info*` 
                                                 + `\ninvalid youtube url or cookies/proxy error`)
         }
-  
+
         if(yt_secs > 600) {
           await mgdb_m.ytdb_err(username)
           .then(id_obj => {
@@ -663,7 +702,7 @@ client.on('message', async message => {
         if(hasQuotedMsg) {
           message.body = arg
         }
-  
+
         if(message.body.includes('youtu.be/')){
           ytid = message.body.split('youtu.be/')[1]
           if(ytid.includes('&')) {
@@ -679,7 +718,7 @@ client.on('message', async message => {
         }    
         var username_number = message.from.split('-')[0].toString()
         var yt_anz
-  
+
         await mgdb_m.ytdb(username_number)
         .then(id_obj => {
           yt_anz = id_obj.yt
@@ -688,7 +727,7 @@ client.on('message', async message => {
           console.log("[@ytmp4] err(1):" + err)
           return client.sendMessage(message.from, `[@ytmp4] DB connection error`) 
         })
-  
+
         if(yt_anz >= user_dl_limit) {
             return client.sendMessage(message.from, `Max 3 vids/hour`) 
         }
@@ -697,12 +736,12 @@ client.on('message', async message => {
         var yt_secs
         var yt_title
         var yt_viewCount
-  
+
         var getWait = {
             method: 'get',
             url: `${host_address}/yt4/${ytid}`
         }
-  
+
         await axios(getWait)
               .then(async function(response) {
                   var data = response.data
@@ -714,12 +753,12 @@ client.on('message', async message => {
               .catch(err => {
                 console.log(`[@${command}] getWait err: ${err}`)
               })
-  
+
         if(yt_status == 400) {
           return         client.sendMessage(message.from, `*YTMP4 error: couldn't get video info*` 
-                                                           + `\ninvalid youtube url or cookies/proxy error`)
+                                                          + `\ninvalid youtube url or cookies/proxy error`)
         }
-  
+
         if(yt_secs > 600) {
           await mgdb_m.ytdb_err(username)
           .then(id_obj => {
@@ -730,7 +769,7 @@ client.on('message', async message => {
           })
           return client.sendMessage(message.from, 'Error! Video exceeds 10 min length');
         }
-  
+
         var wz = Math.round(yt_secs/40) + 1  
         var wartezeit = Math.round((wz*20)/60)
         var length = Math.round(yt_secs/60*100)/100
@@ -739,7 +778,7 @@ client.on('message', async message => {
                                       + `\nViews: ${yt_viewCount}`
                                       + `\nLength: ${length} min`
                                       + `\n\nPlease wait approx ${wartezeit} min ...`)
-  
+
         for(mp4_i=1;mp4_i<=wz;mp4_i++){
           await new Promise(resolve => setTimeout(resolve, 20000))
         }
@@ -755,3 +794,5 @@ client.on('message', async message => {
       }
     }
   });
+});
+console.log(`client inited!`)
