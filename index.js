@@ -47,6 +47,8 @@ var quiz_answers = []
 // Load the session data
 mongoose.connect(config_data.mongodb).then(() => {
   const store = new MongoStore({ mongoose: mongoose });
+
+  /* remote auth currently not working
   const client = new Client({
       webVersionCache: {
         remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2411.2.html', //change to your whatsapp version
@@ -61,6 +63,16 @@ mongoose.connect(config_data.mongodb).then(() => {
           headless: true,
           args: ['--no-sandbox','--disable-setuid-sandbox']
       }
+  });
+  */
+
+  const client = new Client({
+    authStrategy: new LocalAuth(),
+    puppeteer: {
+        executablePath: '/usr/bin/google-chrome-stable',
+        headless: true,
+        args: ['--no-sandbox','--disable-setuid-sandbox']
+    }
   });
 
   client.initialize();  
