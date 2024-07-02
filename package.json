@@ -16,7 +16,7 @@
         "qrcode-terminal": "^0.12.0",
         "@vitalets/google-translate-api": "^8.0.0",
         "random-useragent": "^0.5.0",
-        "whatsapp-web.js": "^1.22.1",
+        "whatsapp-web.js": "github:pedroslopez/whatsapp-web.js#webpack-exodus",
         "fs": "^0.0.1-security",
         "ytdl-core": "^4.11.2",
         "fluent-ffmpeg": "^2.1.2",
