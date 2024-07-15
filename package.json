@@ -12,6 +12,8 @@
         "he": "^1.2.0",
         "mongodb": "^6.0.0",
         "mongoose": "^8.4.1",
+        "wwebjs-mongo": "^1.1.0",
+        "body-parser": "^1.20.2",
         "puppeteer": "^21.2.1",
         "qrcode-terminal": "^0.12.0",
         "@vitalets/google-translate-api": "^8.0.0",
