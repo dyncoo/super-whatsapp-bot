@@ -188,7 +188,7 @@ mongoose.connect(config_data.mongodb).then(() => {
     }
 
     //dall-e
-    if (command.startsWith('dalle') || command.startsWith('aipicture') || command.startsWith('gptpicture')) {
+    if (command.startsWith('dalle') || command.startsWith('picture') || command.startsWith('gptpicture')) {
 
       if(arg <= 1) {
         return client.sendMessage(message.from, "Use chatgpt like this -> @gpt <question>")        
