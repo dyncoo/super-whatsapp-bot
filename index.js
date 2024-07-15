@@ -10,7 +10,6 @@ const os = require('os')
 const axios = require('axios')
 const translate = require('@vitalets/google-translate-api')
 
-const dbn = require('./modules/dbn')
 const wetter = require('./modules/wetter')
 const mgdb_m = require('./modules/mgdb')
 const wiki = require('./modules/wiki')
